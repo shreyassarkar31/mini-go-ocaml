@@ -31,5 +31,7 @@ let new_var : string -> Ast.location -> typ -> var =
 
 let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
   debug := b;
-  failwith "TODO"
+  failwith "Not implemented"
+
+
 
