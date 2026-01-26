@@ -1,0 +1,57 @@
+# dune build @all
+# OCAMLPARAM: unset
+# Shared cache: enabled-except-user-rules
+# Shared cache location: /home/shreyas/.cache/dune/db
+# Workspace root: /home/shreyas/Compilation/mini-go-ocaml
+# Auto-detected concurrency: 12
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dev
+#  ; merlin = true
+#  ; fdo_target_exe = None
+#  ; build_dir = In_build_dir "default"
+#  ; instrument_with = []
+#  }
+$ /usr/bin/ocamlc.opt -config > /tmp/dune_d74535_output
+$ (cd _build/default && /usr/bin/ocamllex -q -o lexer.ml lexer.mll)
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl minigo.ml) > _build/default/.minigo.eobjs/minigo.impl.d
+$ (cd _build/.sandbox/30a667d6616b1ff5b2a26c977e627a05/default && /home/shreyas/.opam/default/bin/menhir -v --fixed-exception parser.mly --base parser --infer-write-query parser__mock.ml.mock)
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl lexer.ml) > _build/default/.minigo.eobjs/lexer.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl compile.ml) > _build/default/.minigo.eobjs/compile.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl pretty.ml) > _build/default/.minigo.eobjs/pretty.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl typing.ml) > _build/default/.minigo.eobjs/typing.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl rewrite.ml) > _build/default/.minigo.eobjs/rewrite.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -intf x86_64.mli) > _build/default/.minigo.eobjs/x86_64.intf.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -intf ast.mli) > _build/default/.minigo.eobjs/ast.intf.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl lib.ml) > _build/default/.minigo.eobjs/lib.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -intf tast.mli) > _build/default/.minigo.eobjs/tast.intf.d
+$ (cd _build/.sandbox/c69782670471b81222141ad3c06aa2dd/default && /usr/bin/ocamldep.opt -modules -impl parser__mock.ml.mock) > _build/.sandbox/c69782670471b81222141ad3c06aa2dd/default/.minigo.eobjs/parser__mock.impl.d
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/ast.cmi -c -intf ast.mli)
+$ (cd _build/.sandbox/5d94462b4bfc3534c0176cceaad0d7cb/default && /usr/bin/ocamlc.opt -g -g -I .minigo.eobjs/byte -short-paths -i -impl parser__mock.ml.mock) > _build/.sandbox/5d94462b4bfc3534c0176cceaad0d7cb/default/parser__mock.mli.inferred
+$ (cd _build/.sandbox/10a888e76c8b31961afce6eee877e034/default && /home/shreyas/.opam/default/bin/menhir -v --fixed-exception --explain parser.mly --base parser --infer-read-reply parser__mock.mli.inferred)
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -intf parser.mli) > _build/default/.minigo.eobjs/parser.intf.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl x86_64.ml) > _build/default/.minigo.eobjs/x86_64.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl parser.ml) > _build/default/.minigo.eobjs/parser.impl.d
+$ (cd _build/default && /usr/bin/ocamldep.opt -modules -intf minigo.mli) > _build/default/.minigo.eobjs/minigo.intf.d
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/parser.cmi -c -intf parser.mli)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/tast.cmi -c -intf tast.mli)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/minigo.cmi -c -intf minigo.mli)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/x86_64.cmi -c -intf x86_64.mli)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/lib.cmo -c -impl lib.ml)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/lexer.cmo -c -impl lexer.ml)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/compile.cmo -c -impl compile.ml)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/typing.cmo -c -impl typing.ml)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/pretty.cmo -c -impl pretty.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/lib.cmx -c -impl lib.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/compile.cmx -c -impl compile.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/lexer.cmx -c -impl lexer.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/typing.cmx -c -impl typing.ml)
+$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/rewrite.cmo -c -impl rewrite.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/pretty.cmx -c -impl pretty.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/minigo.cmx -c -impl minigo.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/rewrite.cmx -c -impl rewrite.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/x86_64.cmx -c -impl x86_64.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/parser.cmx -c -impl parser.ml)
+$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -o minigo.exe .minigo.eobjs/native/x86_64.cmx .minigo.eobjs/native/compile.cmx .minigo.eobjs/native/parser.cmx .minigo.eobjs/native/lexer.cmx .minigo.eobjs/native/lib.cmx .minigo.eobjs/native/pretty.cmx .minigo.eobjs/native/typing.cmx .minigo.eobjs/native/rewrite.cmx .minigo.eobjs/native/minigo.cmx)
+# Promoting "_build/default/minigo.exe" to "minigo.exe"
