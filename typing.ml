@@ -148,20 +148,30 @@ let rec type_expr env fenv senv ret_type e =
       (try 
         let fn = Hashtbl.find fenv f.id in
         let targs = List.map (type_expr env fenv senv ret_type) args in
-        if List.length targs <> List.length fn.fn_params then
-          errorm ~loc "function %s expects %d arguments but got %d" 
-          f.id (List.length fn.fn_params) (List.length targs);
-        List.iter2 (fun targ param ->
-          if not (compatible targ.expr_typ param.v_typ) then
-            errorm ~loc "type mismatch in argument to %s: expected %s" 
-            f.id (string_of_type param.v_typ)
-          ) targs fn.fn_params;
-          let ret_ty = match fn.fn_typ with 
-            | [] -> Tmany []
-            | [t] -> t
-            | l -> Tmany l
-          in
-          TEcall (fn, targs), ret_ty
+
+        if f.id = "print" then begin
+          List.iter (fun targ ->
+            match targ.expr_typ with 
+            | Tint | Tbool | Tstring -> ()
+            | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string"
+            ) targs;
+            TEcall (fn, targs), Tmany []
+        end else begin 
+          if List.length targs <> List.length fn.fn_params then
+            errorm ~loc "function %s expects %d arguments but got %d" 
+            f.id (List.length fn.fn_params) (List.length targs);
+          List.iter2 (fun targ param ->
+            if not (compatible targ.expr_typ param.v_typ) then
+              errorm ~loc "type mismatch in argument to %s: expected %s" 
+              f.id (string_of_type param.v_typ)
+            ) targs fn.fn_params;
+            let ret_ty = match fn.fn_typ with 
+              | [] -> Tmany []
+              | [t] -> t
+              | l -> Tmany l
+            in
+            TEcall (fn, targs), ret_ty
+          end
         with Not_found -> 
           errorm ~loc:f.loc "unknown function %s" f.id)
     
