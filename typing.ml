@@ -145,18 +145,20 @@ let rec type_expr env fenv senv ret_type e =
       TEunop (op, te1), ty
 
     | PEcall (f, args) ->
-      (try 
+      if !debug then
+        Format.eprintf "DEBUG: Calling function '%s'@." f.id;
+      if f.id = "print" then begin
+        let targs = List.map (type_expr env fenv senv ret_type) args in
+        List.iter (fun targ ->
+          match targ.expr_typ with 
+          | Tint | Tbool | Tstring -> ()
+          | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string"
+          ) targs;
+          TEprint targs, Tmany []
+      end else begin
+      (try
         let fn = Hashtbl.find fenv f.id in
         let targs = List.map (type_expr env fenv senv ret_type) args in
-
-        if f.id = "print" then begin
-          List.iter (fun targ ->
-            match targ.expr_typ with 
-            | Tint | Tbool | Tstring -> ()
-            | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string"
-            ) targs;
-            TEcall (fn, targs), Tmany []
-        end else begin 
           if List.length targs <> List.length fn.fn_params then
             errorm ~loc "function %s expects %d arguments but got %d" 
             f.id (List.length fn.fn_params) (List.length targs);
@@ -171,10 +173,9 @@ let rec type_expr env fenv senv ret_type e =
               | l -> Tmany l
             in
             TEcall (fn, targs), ret_ty
-          end
         with Not_found -> 
           errorm ~loc:f.loc "unknown function %s" f.id)
-    
+      end
     | PEdot (e1, field) ->
       let te1 = type_expr env fenv senv ret_type e1 in 
       let s = match te1.expr_typ with 
@@ -298,10 +299,111 @@ let rec type_expr env fenv senv ret_type e =
       TEincdec (te1, op), Tmany []
   in
   { expr_desc = desc; expr_typ = ty }
-              
+
+
+let type_decl env fenv senv d =
+  match d with
+  | PDfunction pf ->
+    let fn = try Hashtbl.find fenv pf.pf_name.id 
+            with Not_found ->
+              errorm ~loc:pf.pf_name.loc "internal error: function not in environment" in 
+    let env' = empty_env() in 
+    List.iter (fun v -> Hashtbl.add env' v.v_name v) fn.fn_params;
+    let ret_type = match fn.fn_typ with
+      | [] -> Tmany []
+      | [t] -> t
+      | l -> Tmany l
+    in
+    let tbody = type_expr env' fenv senv ret_type pf.pf_body in
+      
+    List.iter (fun v ->
+      if not v.v_used && not (String.starts_with ~prefix:"_" v.v_name) then
+        
+        if !debug then 
+          Format.eprintf "Warning: parameter %s is unused@." v.v_name
+    ) fn.fn_params;
+
+    Some (TDfunction (fn, tbody))
+  
+  | PDstruct ps ->
+      
+      let s = {
+        s_name = ps.ps_name.id;
+        s_fields = Hashtbl.create 17;
+        s_list = [];
+        s_size = 0;
+      } in
+      
+      if Hashtbl.mem senv ps.ps_name.id then
+        errorm ~loc:ps.ps_name.loc "struct %s already declared" ps.ps_name.id;
+      Hashtbl.add senv ps.ps_name.id s;
+      
+    
+      let offset = ref 0 in
+      let fields = List.map (fun (id, ptyp) ->
+        let ty = type_type senv ptyp in
+        if Hashtbl.mem s.s_fields id.id then
+          errorm ~loc:id.loc "duplicate field %s in struct %s" id.id s.s_name;
+        let f = { f_name = id.id; f_typ = ty; f_ofs = !offset } in
+        Hashtbl.add s.s_fields id.id f;
+        offset := !offset + 8;
+        f
+      ) ps.ps_fields in
+      
+      s.s_list <- fields;
+      s.s_size <- !offset;
+      
+      Some (TDstruct s)
+
 let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
   debug := b;
-  failwith "Not implemented"
+  
+  let senv = empty_senv () in
+  let fenv = empty_fenv () in
+  let env = empty_env () in
+  
+  List.iter (fun d ->
+    match d with
+    | PDstruct ps ->
+        let s = {
+          s_name = ps.ps_name.id;
+          s_fields = Hashtbl.create 17;
+          s_list = [];
+          s_size = 0;
+        } in
+        if Hashtbl.mem senv ps.ps_name.id then
+          errorm ~loc:ps.ps_name.loc "struct %s already declared" ps.ps_name.id;
+        Hashtbl.add senv ps.ps_name.id s
+    | PDfunction pf ->
+        let params = List.map (fun (id, ptyp) ->
+          let ty = type_type senv ptyp in
+          new_var id.id id.loc ty
+        ) pf.pf_params in
+        let ret_types = List.map (type_type senv) pf.pf_typ in
+        let fn = {
+          fn_name = pf.pf_name.id;
+          fn_params = params;
+          fn_typ = ret_types;
+        } in
+        if Hashtbl.mem fenv pf.pf_name.id then
+          errorm ~loc:pf.pf_name.loc "function %s already declared" pf.pf_name.id;
+        Hashtbl.add fenv pf.pf_name.id fn
+  ) dl;
+  
+  
+  let tdecls = List.filter_map (type_decl env fenv senv) dl in
+  
+  (try
+    let main = Hashtbl.find fenv "main" in
+    if main.fn_params <> [] then
+      errorm "main function must have no parameters";
+    if main.fn_typ <> [] then
+      errorm "main function must have no return values"
+  with Not_found ->
+    errorm "missing main function");
+  
+  tdecls
+              
 
 
 
