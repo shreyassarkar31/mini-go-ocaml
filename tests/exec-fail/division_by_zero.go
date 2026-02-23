@@ -1,6 +1,6 @@
 package main
 import "fmt"
-
 func main() {
-	print(6+5)
+	x := 0;
+	fmt.Print(1/x)
 }

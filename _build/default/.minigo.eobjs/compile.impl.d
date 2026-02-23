@@ -1,1 +1,1 @@
-compile.ml: Ast Format List Tast X86_64
+compile.ml:

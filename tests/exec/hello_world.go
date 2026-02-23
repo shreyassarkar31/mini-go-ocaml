@@ -1,6 +1,5 @@
 package main
 import "fmt"
-
 func main() {
-	print(6+5)
+	fmt.Print("Hello, world\n")
 }
