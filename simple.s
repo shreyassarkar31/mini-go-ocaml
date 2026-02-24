@@ -3,7 +3,7 @@
 main:
 	pushq %rbp
 	movq %rsp, %rbp
-	call _go_main
+	call main
 	xorq %rax, %rax
 	popq %rbp
 	ret
@@ -11,15 +11,6 @@ _go_main:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
-	movq $5, %rax
-	pushq %rax
-	movq $6, %rax
-	popq %rbx
-	addq %rbx, %rax
-	movq %rax, %rsi
-	movq $S_fmt_int, %rdi
-	xorq %rax, %rax
-	call printf_
 	movq %rbp, %rsp
 	popq %rbp
 	ret

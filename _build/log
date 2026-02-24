@@ -13,10 +13,4 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /usr/bin/ocamlc.opt -config > /tmp/dune_99b6b6_output
-$ (cd _build/default && /usr/bin/ocamldep.opt -modules -impl compile.ml) > _build/default/.minigo.eobjs/compile.impl.d
-$ (cd _build/default && /usr/bin/ocamlc.opt -g -g -bin-annot -I .minigo.eobjs/byte -no-alias-deps -opaque -o .minigo.eobjs/byte/compile.cmo -c -impl compile.ml)
-$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/minigo.cmx -c -impl minigo.ml)
-$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -I .minigo.eobjs/byte -I .minigo.eobjs/native -intf-suffix .ml -no-alias-deps -opaque -o .minigo.eobjs/native/compile.cmx -c -impl compile.ml)
-$ (cd _build/default && /usr/bin/ocamlopt.opt -g -g -o minigo.exe .minigo.eobjs/native/x86_64.cmx .minigo.eobjs/native/compile.cmx .minigo.eobjs/native/parser.cmx .minigo.eobjs/native/lexer.cmx .minigo.eobjs/native/lib.cmx .minigo.eobjs/native/pretty.cmx .minigo.eobjs/native/typing.cmx .minigo.eobjs/native/rewrite.cmx .minigo.eobjs/native/minigo.cmx)
-# Promoting "_build/default/minigo.exe" to "minigo.exe"
+$ /usr/bin/ocamlc.opt -config > /tmp/dune_fb73ba_output

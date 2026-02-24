@@ -147,8 +147,9 @@ and compile_expr e =
           code
         ) args nop
        in
+       let fn_label = if fn.fn_name = "main" then "_go_main" else fn.fn_name in
       push_args ++
-      call (fn.fn_name) ++ 
+      call fn_label ++ 
       (if nargs > 0 then 
         addq (imm (8 * nargs)) (reg rsp)
       else nop)
@@ -305,7 +306,10 @@ let compile_function fn body =
   let stack_size = compute_locals fn body in 
   let stack_size = (stack_size +15) land (-16) in 
 
-  label fn.fn_name ++
+  let fn_label = if fn.fn_name = "main" then "_go_main" else fn.fn_name in 
+
+  label fn_label ++
+  
   pushq (reg rbp) ++
   movq (reg rsp) (reg rbp) ++
   (if stack_size > 0 then subq (imm stack_size) (reg rsp) else nop) ++
@@ -338,7 +342,7 @@ let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
       label "main" ++
       pushq (reg rbp) ++
       movq (reg rsp) (reg rbp) ++
-      call "main" ++
+      call "_go_main" ++
       xorq (reg rax) (reg rax) ++
       popq rbp ++
       ret
