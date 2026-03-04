@@ -52,4 +52,4 @@ S_true:
 S_false:
 	.string "false"
 L_1:
-	.string "hello world"
+	.string ""

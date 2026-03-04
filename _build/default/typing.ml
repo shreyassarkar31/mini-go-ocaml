@@ -147,14 +147,25 @@ let rec type_expr env fenv senv ret_type e =
     | PEcall (f, args) ->
       if !debug then
         Format.eprintf "DEBUG: Calling function '%s'@." f.id;
-      if f.id = "print" then begin
+
+      let is_print_fn =
+        f.id = "fmt.Print" || f.id = "fmt.Println" in 
+
+      if is_print_fn then begin
         let targs = List.map (type_expr env fenv senv ret_type) args in
         List.iter (fun targ ->
           match targ.expr_typ with 
           | Tint | Tbool | Tstring -> ()
           | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string"
           ) targs;
-          TEprint targs, Tmany []
+          if f.id = "fmt.Println" then
+            let newline_expr = {
+              expr_desc = TEconstant (Cstring "\n");
+              expr_typ = Tstring;
+            } in
+          TEprint (targs @ [newline_expr]), Tmany []
+          else
+            TEprint targs, Tmany []
       end else begin
       (try
         let fn = Hashtbl.find fenv f.id in

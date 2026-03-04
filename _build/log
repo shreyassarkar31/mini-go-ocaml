@@ -1,6 +1,6 @@
 # dune build
 # OCAMLPARAM: unset
-# Shared cache: enabled-except-user-rules
+# Shared cache: disabled
 # Shared cache location: /home/shreyas/.cache/dune/db
 # Workspace root: /home/shreyas/Compilation/mini-go-ocaml
 # Auto-detected concurrency: 12
@@ -11,6 +11,13 @@
 #  ; merlin = true
 #  ; fdo_target_exe = None
 #  ; build_dir = In_build_dir "default"
+#  ; installed_env =
+#      map
+#        { "INSIDE_DUNE" :
+#            "/home/shreyas/Compilation/mini-go-ocaml/_build/default"
+#        ; "OCAML_COLOR" : "always"
+#        ; "OPAMCOLOR" : "always"
+#        }
 #  ; instrument_with = []
 #  }
-$ /usr/bin/ocamlc.opt -config > /tmp/dune_fb73ba_output
+$ /usr/bin/ocamlc.opt -config > /tmp/dune_338d5e_output

@@ -11,10 +11,6 @@ _go_main:
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
-	movq $L_1, %rax
-	movq %rax, %rdi
-	xorq %rax, %rax
-	call printf_
 	movq %rbp, %rsp
 	popq %rbp
 	ret
@@ -51,5 +47,3 @@ S_true:
 	.string "true"
 S_false:
 	.string "false"
-L_1:
-	.string "hello world"
