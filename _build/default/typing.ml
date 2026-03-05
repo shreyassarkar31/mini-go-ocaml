@@ -12,6 +12,9 @@ let dummy_loc = Lexing.dummy_pos, Lexing.dummy_pos
 
 exception Error of Ast.location * string
 
+let fmt_imported = ref false 
+let fmt_used = ref false
+
 
 (** use this function to report errors; it is a printf-like function, eg.
 
@@ -150,6 +153,12 @@ let rec type_expr env fenv senv ret_type e =
 
       let is_print_fn =
         f.id = "fmt.Print" || f.id = "fmt.Println" in 
+
+      if is_print_fn then begin
+        if not !fmt_imported then
+          errorm ~loc:f.loc "cannot use fmt functions without importing \"fmt\"";
+        fmt_used := true
+      end;
 
       if is_print_fn then begin
         let targs = List.map (type_expr env fenv senv ret_type) args in
@@ -369,6 +378,9 @@ let type_decl env fenv senv d =
 let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
   debug := b;
   
+  fmt_imported := imp;
+  fmt_used := false;
+
   let senv = empty_senv () in
   let fenv = empty_fenv () in
   let env = empty_env () in
@@ -412,6 +424,13 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
       errorm "main function must have no return values"
   with Not_found ->
     errorm "missing main function");
+
+  
+  if !fmt_imported && not !fmt_used then
+    errorm "imported and not used: \"fmt\"";
+  
+  if !fmt_used && not !fmt_imported then
+    errorm "used but not imported: \"fmt\"";
   
   tdecls
               
