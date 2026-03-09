@@ -154,6 +154,8 @@ let rec type_expr env fenv senv ret_type e =
       let is_print_fn =
         f.id = "fmt.Print" || f.id = "fmt.Println" in 
 
+      let is_new = f.id = "new" in
+
       if is_print_fn then begin
         if not !fmt_imported then
           errorm ~loc:f.loc "cannot use fmt functions without importing \"fmt\"";
@@ -165,7 +167,8 @@ let rec type_expr env fenv senv ret_type e =
         List.iter (fun targ ->
           match targ.expr_typ with 
           | Tint | Tbool | Tstring -> ()
-          | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string"
+          | Tptr _ | Tnil -> ()
+          | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string or pointer"
           ) targs;
           if f.id = "fmt.Println" then
             let newline_expr = {
@@ -175,18 +178,34 @@ let rec type_expr env fenv senv ret_type e =
           TEprint (targs @ [newline_expr]), Tmany []
           else
             TEprint targs, Tmany []
-      end else begin
+      end 
+    else if is_new then begin
+      match args with
+      | [{pexpr_desc = PEident type_id; _}] ->
+        let ty = type_type senv (PTident type_id) in
+        TEnew ty, Tptr ty
+      | _ -> errorm ~loc:f.loc "new expects exactly one type argument"
+    end else begin
       (try
         let fn = Hashtbl.find fenv f.id in
         let targs = List.map (type_expr env fenv senv ret_type) args in
-          if List.length targs <> List.length fn.fn_params then
+
+        let arg_types = 
+          List.flatten (List.map (fun targ ->
+            match targ.expr_typ with
+            | Tmany l -> l 
+            | t -> [t]
+          ) targs) in
+
+          let param_types = List.map (fun v -> v.v_typ) fn.fn_params in
+          if List.length arg_types <> List.length param_types then
             errorm ~loc "function %s expects %d arguments but got %d" 
-            f.id (List.length fn.fn_params) (List.length targs);
-          List.iter2 (fun targ param ->
-            if not (compatible targ.expr_typ param.v_typ) then
+            f.id (List.length param_types) (List.length arg_types);
+          List.iter2 (fun arg_t param_t ->
+            if not (compatible arg_t param_t) then
               errorm ~loc "type mismatch in argument to %s: expected %s" 
-              f.id (string_of_type param.v_typ)
-            ) targs fn.fn_params;
+              f.id (string_of_type param_t)
+            ) arg_types param_types;
             let ret_ty = match fn.fn_typ with 
               | [] -> Tmany []
               | [t] -> t
@@ -238,8 +257,23 @@ let rec type_expr env fenv senv ret_type e =
 
           TEassign (tlvals, trvals), Tmany []
         
-    | PEvars (ids, pytyp_opt, exprs) ->
-      let texps = List.map (type_expr env fenv senv ret_type) exprs in
+    | PEvars (ids, ptyp_opt, exprs) ->
+      
+        if exprs = [] then begin
+          (match ptyp_opt with
+          | None -> errorm ~loc "type required when not initialising"
+          | Some pt ->
+            let declared_ty = type_type senv pt in
+            let vars = List.map (fun id ->
+              let v = new_var id.id id.loc declared_ty in
+              if Hashtbl.mem env id.id then
+                errorm ~loc:id.loc "variable %s already declared" id.id;
+              Hashtbl.add env id.id v;
+              v
+            ) ids in
+            TEvars vars, Tmany [])
+        end else begin
+          let texps = List.map (type_expr env fenv senv ret_type) exprs in
 
       let exp_types = match texps with 
         | [e] ->
@@ -254,14 +288,17 @@ let rec type_expr env fenv senv ret_type e =
           (List.length ids) (List.length exp_types);
 
         let vars = List.map2 (fun id ty ->
-          let v_ty = match pytyp_opt with 
+          let v_ty = match ptyp_opt with 
             | Some pt ->
               let declared_ty = type_type senv pt in
               if not (compatible ty declared_ty) then
                 errorm ~loc:id.loc "cannot use type %s as type %s"
                 (string_of_type ty) (string_of_type declared_ty);
               declared_ty
-            | None -> ty
+            | None ->
+              if ty = Tnil then
+                errorm ~loc:id.loc "use of untyped nil";
+                 ty
           in
           let v = new_var id.id id.loc v_ty in 
           if Hashtbl.mem env id.id then 
@@ -269,8 +306,23 @@ let rec type_expr env fenv senv ret_type e =
           Hashtbl.add env id.id v;
           v
         ) ids exp_types in 
-        TEvars vars, Tmany []
-    
+
+        let decl_expr = {
+          expr_desc = TEvars vars;
+          expr_typ = Tmany []
+        } in
+
+        let lvals = List.map (fun v -> {
+          expr_desc = TEident v;
+          expr_typ = v.v_typ
+        }) vars in
+
+        let assign_expr = {
+          expr_desc = TEassign (lvals, texps);
+          expr_typ = Tmany []
+        } in
+        TEblock [decl_expr; assign_expr], Tmany []
+      end
     | PEif (cond, then_e, else_e) ->
       let te = type_expr env fenv senv ret_type cond in 
       if not (eq_type te.expr_typ Tbool) then
@@ -297,9 +349,8 @@ let rec type_expr env fenv senv ret_type e =
           errorm ~loc "return type mismatch");
         TEreturn texprs, Tmany []
     
-    |PEblock exprs ->
-      let env' = copy_env env in 
-      let texprs = List.map (type_expr env' fenv senv ret_type) exprs in 
+    |PEblock exprs -> 
+      let texprs = List.map (type_expr env fenv senv ret_type) exprs in 
       TEblock texprs,Tmany []
 
     |PEfor (cond, body) ->
@@ -324,39 +375,51 @@ let rec type_expr env fenv senv ret_type e =
 let type_decl env fenv senv d =
   match d with
   | PDfunction pf ->
-    let fn = try Hashtbl.find fenv pf.pf_name.id 
-            with Not_found ->
-              errorm ~loc:pf.pf_name.loc "internal error: function not in environment" in 
-    let env' = empty_env() in 
-    List.iter (fun v -> Hashtbl.add env' v.v_name v) fn.fn_params;
-    let ret_type = match fn.fn_typ with
-      | [] -> Tmany []
-      | [t] -> t
-      | l -> Tmany l
-    in
-    let tbody = type_expr env' fenv senv ret_type pf.pf_body in
+    let fn = try Hashtbl.find fenv pf.pf_name.id
+               with Not_found -> 
+                 errorm ~loc:pf.pf_name.loc "internal error: function not in environment" in
       
-    List.iter (fun v ->
-      if not v.v_used && not (String.starts_with ~prefix:"_" v.v_name) then
-        
-        if !debug then 
-          Format.eprintf "Warning: parameter %s is unused@." v.v_name
-    ) fn.fn_params;
+      
+      let env' = empty_env () in
+      List.iter (fun v -> Hashtbl.add env' v.v_name v) fn.fn_params;
+      
+      let ret_type = match fn.fn_typ with
+        | [] -> Tmany []
+        | [t] -> t
+        | l -> Tmany l
+      in
+      let tbody = type_expr env' fenv senv ret_type pf.pf_body in
 
-    Some (TDfunction (fn, tbody))
+      let rec ends_with_return e =
+        match e.expr_desc with
+        | TEreturn _ -> true
+        | TEblock [] -> false
+        | TEblock exprs -> ends_with_return (List.hd (List.rev exprs))
+        | TEif (_, e1, e2) -> ends_with_return e1 && ends_with_return e2
+        | _ -> false
+      in
+
+      if fn.fn_typ <> [] && not (ends_with_return tbody) then
+        errorm ~loc:pf.pf_name.loc "missing return at end of function";
+      List.iter (fun v ->
+        if not v.v_used && not (String.starts_with ~prefix:"_" v.v_name) then
+          if !debug then
+            Format.eprintf "Warning: parameter %s is unused@." v.v_name
+      ) fn.fn_params;
+      
+      
+      Hashtbl.iter (fun name v ->
+        if not v.v_used && not (String.starts_with ~prefix:"_" v.v_name) then
+          errorm ~loc:v.v_loc "%s declared but not used" v.v_name
+      ) env';
+      
+      Some (TDfunction (fn, tbody))
   
   | PDstruct ps ->
       
-      let s = {
-        s_name = ps.ps_name.id;
-        s_fields = Hashtbl.create 17;
-        s_list = [];
-        s_size = 0;
-      } in
-      
-      if Hashtbl.mem senv ps.ps_name.id then
-        errorm ~loc:ps.ps_name.loc "struct %s already declared" ps.ps_name.id;
-      Hashtbl.add senv ps.ps_name.id s;
+      let s = try Hashtbl.find senv ps.ps_name.id 
+            with Not_found ->
+              errorm ~loc:ps.ps_name.loc "internal error: struct not in environment" in
       
     
       let offset = ref 0 in
@@ -364,6 +427,12 @@ let type_decl env fenv senv d =
         let ty = type_type senv ptyp in
         if Hashtbl.mem s.s_fields id.id then
           errorm ~loc:id.loc "duplicate field %s in struct %s" id.id s.s_name;
+
+        (match ty with
+        | Tstruct s2 when s2.s_name = s.s_name ->
+            errorm ~loc:id.loc "invalid recursive type %s" s.s_name
+        | _ -> ());
+
         let f = { f_name = id.id; f_typ = ty; f_ofs = !offset } in
         Hashtbl.add s.s_fields id.id f;
         offset := !offset + 8;
@@ -415,22 +484,45 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
   
   
   let tdecls = List.filter_map (type_decl env fenv senv) dl in
-  
-  (try
-    let main = Hashtbl.find fenv "main" in
-    if main.fn_params <> [] then
-      errorm "main function must have no parameters";
-    if main.fn_typ <> [] then
-      errorm "main function must have no return values"
-  with Not_found ->
-    errorm "missing main function");
+
+  let rec check_struct_cycle s path =
+    let rec contains_cycle ty visited =
+      match ty with
+      | Tstruct s2 ->
+        if List.mem s2.s_name visited then
+          errorm "invalid recursive type: cycle involving %s" s2.s_name
+        else
+          List.iter (fun f ->
+            contains_cycle f.f_typ (s2.s_name :: visited)
+          ) s2.s_list
+        | Tptr _ -> ()
+        | _ -> ()
+    in
+    List.iter(fun f -> contains_cycle f.f_typ [s.s_name]) s.s_list
+  in
+
+  List.iter (function
+  | TDstruct s -> check_struct_cycle s []
+  | _ -> ()
+  ) tdecls;
+
+  let has_functions = List.exists (function TDfunction _ -> true | _ -> false) tdecls in 
+
+  if has_functions then
+    (try
+      let main = Hashtbl.find fenv "main" in
+      if main.fn_params <> [] then
+        errorm "main function must have no parameters";
+      if main.fn_typ <> [] then
+        errorm "main function must have no return values"
+    with Not_found ->
+      errorm "missing main function");
 
   
   if !fmt_imported && not !fmt_used then
     errorm "imported and not used: \"fmt\"";
   
-  if !fmt_used && not !fmt_imported then
-    errorm "used but not imported: \"fmt\"";
+  
   
   tdecls
               

@@ -11,8 +11,10 @@ let debug = ref false
 let iter f = List.fold_left (fun code x -> code ++ f x) nop
 let iter2 f = List.fold_left2 (fun code x y -> code ++ f x y) nop
 
-let new_label =
-  let r = ref 0 in fun () -> incr r; "L_" ^ string_of_int !r
+let label_counter = ref 0
+let new_label () =
+  incr label_counter;
+  "L_" ^ string_of_int !label_counter
 
 let strings = Hashtbl.create 17
 let add_string s =
@@ -180,6 +182,12 @@ and compile_expr e =
      xorq (reg rax) (reg rax))
      
   | TEvars vars ->
+    let init_vars = List.fold_left (fun code v ->
+      code ++ 
+      xorq (reg rax) (reg rax) ++ 
+      movq (reg rax) (ind ~ofs:v.v_ofs rbp)
+    ) nop vars in
+    init_vars ++
     xorq (reg rax) (reg rax) 
   
   | TEif (cond, e_then, e_else) ->
@@ -242,6 +250,12 @@ and compile_expr e =
         | Tstring ->
             compile_expr e ++
             movq (reg rax) (reg rdi) ++
+            xorq (reg rax) (reg rax) ++
+            call "printf_"
+        | Tptr _ | Tnil ->
+            compile_expr e ++
+            movq (reg rax) (reg rsi) ++
+            movq (ilab "S_fmt_int") (reg rdi) ++
             xorq (reg rax) (reg rax) ++
             call "printf_"
         | _ -> nop 
@@ -326,6 +340,7 @@ let compile_function fn body =
 let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
   debug := b;
 
+  label_counter := 0;
 
   Hashtbl.clear strings;
 
