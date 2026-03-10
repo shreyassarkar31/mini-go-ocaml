@@ -165,10 +165,14 @@ let rec type_expr env fenv senv ret_type e =
       if is_print_fn then begin
         let targs = List.map (type_expr env fenv senv ret_type) args in
         List.iter (fun targ ->
+          let check_printable ty =
+            match ty with 
+            | Tint | Tbool | Tstring | Tptr _ | Tnil -> ()
+            | _ -> errorm ~loc:f.loc "print only accepts int, bool, string, or pointer"
+          in
           match targ.expr_typ with 
-          | Tint | Tbool | Tstring -> ()
-          | Tptr _ | Tnil -> ()
-          | _ -> errorm ~loc:f.loc "print only accepts int, bool, or string or pointer"
+          | Tmany l -> List.iter check_printable l
+          | t -> check_printable t
           ) targs;
           if f.id = "fmt.Println" then
             let newline_expr = {
@@ -323,6 +327,7 @@ let rec type_expr env fenv senv ret_type e =
         } in
         TEblock [decl_expr; assign_expr], Tmany []
       end
+
     | PEif (cond, then_e, else_e) ->
       let te = type_expr env fenv senv ret_type cond in 
       if not (eq_type te.expr_typ Tbool) then
@@ -333,7 +338,14 @@ let rec type_expr env fenv senv ret_type e =
 
     | PEreturn (exprs) ->
       let texprs = List.map (type_expr env fenv senv ret_type) exprs in 
-      let expr_types = List.map (fun e -> e.expr_typ) texprs in 
+      let expr_types = match texprs with 
+      | [e] when (match e.expr_typ with Tmany _ -> true | _ -> false) ->
+        (match e.expr_typ with 
+        | Tmany l -> l
+        | t -> [t])
+      | _ -> List.map (fun e -> e.expr_typ) texprs
+        in
+
       (match ret_type with
       | Tmany expected ->
         if List.length expr_types <> List.length expected then
