@@ -78,9 +78,9 @@ let rec type_type senv ptyp =
     | s ->
     (try Tstruct (Hashtbl.find senv s)
      with Not_found -> errorm ~loc:id.loc "unknown type %s" s))
-     | PTptr pt -> Tptr (type_type senv pt)
+  | PTptr pt -> Tptr (type_type senv pt)
     
-let rec type_expr env fenv senv ret_type e =
+let rec type_expr env fenv senv ret_type ?(scope_vars=ref []) e =
   let loc = e.pexpr_loc in 
   let desc, ty = match e.pexpr_desc with
     | PEskip -> TEskip, Tmany []
@@ -94,6 +94,8 @@ let rec type_expr env fenv senv ret_type e =
     | PEnil -> TEnil, Tnil
 
     | PEident id ->
+      if id.id = "_" then
+        errorm ~loc:id.loc "cannot use _ as value";
       (try 
         let v = Hashtbl.find env id.id in
         v.v_used <- true;
@@ -103,6 +105,13 @@ let rec type_expr env fenv senv ret_type e =
     | PEbinop (op, e1, e2) ->
       let te1 = type_expr env fenv senv ret_type e1 in
       let te2 = type_expr env fenv senv ret_type e2 in
+
+      (match op with
+      | Beq | Bne ->
+          if te1.expr_typ = Tnil && te2.expr_typ = Tnil then
+            errorm ~loc "cannot comapre untyped nil values";
+      | _ -> ());
+
       let ty = match op with
         | Badd | Bsub | Bmul | Bdiv | Bmod ->
             if not (eq_type te1.expr_typ Tint && eq_type te2.expr_typ Tint) then
@@ -194,6 +203,12 @@ let rec type_expr env fenv senv ret_type e =
         let fn = Hashtbl.find fenv f.id in
         let targs = List.map (type_expr env fenv senv ret_type) args in
 
+        List.iter (fun targ ->
+          match targ.expr_typ with 
+          | Tmany [] -> errorm ~loc:f.loc "cannot pass void value as argument"
+          | _ -> ()
+        ) targs;
+
         let arg_types = 
           List.flatten (List.map (fun targ ->
             match targ.expr_typ with
@@ -270,10 +285,13 @@ let rec type_expr env fenv senv ret_type e =
             let declared_ty = type_type senv pt in
             let vars = List.map (fun id ->
               let v = new_var id.id id.loc declared_ty in
-              if Hashtbl.mem env id.id then
-                errorm ~loc:id.loc "variable %s already declared" id.id;
-              Hashtbl.add env id.id v;
-              v
+              if id.id <> "_" then begin
+                if List.mem id.id !scope_vars then
+                  errorm ~loc:id.loc "variable %s already decalred" id.id;
+                  Hashtbl.replace env id.id v;
+                  scope_vars := id.id :: !scope_vars
+                end;
+                v
             ) ids in
             TEvars vars, Tmany [])
         end else begin
@@ -305,9 +323,12 @@ let rec type_expr env fenv senv ret_type e =
                  ty
           in
           let v = new_var id.id id.loc v_ty in 
-          if Hashtbl.mem env id.id then 
-            errorm ~loc:id.loc "variable %s already declared" id.id;
-          Hashtbl.add env id.id v;
+          if id.id <> "_" then begin
+            if List.mem id.id !scope_vars then
+              errorm ~loc:id.loc "variable %s already decalred" id.id;
+              Hashtbl.replace env id.id v;
+              scope_vars := id.id :: !scope_vars
+          end;
           v
         ) ids exp_types in 
 
@@ -362,8 +383,22 @@ let rec type_expr env fenv senv ret_type e =
         TEreturn texprs, Tmany []
     
     |PEblock exprs -> 
-      let texprs = List.map (type_expr env fenv senv ret_type) exprs in 
-      TEblock texprs,Tmany []
+      let env_block = copy_env env in
+      let block_scope_vars = ref [] in 
+
+      let vars_before = Hashtbl.fold (fun k v acc -> (k, v.v_id) :: acc) env_block [] in 
+      let texprs = List.map (type_expr env_block fenv senv ret_type ~scope_vars:block_scope_vars) 
+      exprs in 
+      
+
+      Hashtbl.iter (fun name v ->
+        let existed_before = List.exists (fun  (k, id) -> k = name && id = v.v_id) vars_before in
+        let is_new_in_block = not existed_before in
+        if is_new_in_block && not v.v_used && not (String.starts_with ~prefix:"_" v.v_name) then
+          errorm ~loc:v.v_loc "variable %s declared but not used" v.v_name
+      ) env_block;
+
+      TEblock texprs, Tmany []
 
     |PEfor (cond, body) ->
       let tcond = type_expr env fenv senv ret_type cond in
