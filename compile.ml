@@ -1,4 +1,3 @@
-
 (** Code generation for Mini Go programs (TODO) *)
 
 open Format
