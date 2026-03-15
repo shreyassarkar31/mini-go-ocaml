@@ -14,7 +14,9 @@ let iter2 f = List.fold_left2 (fun code x y -> code ++ f x y) nop
 let label_counter = ref 0
 let new_label () =
   incr label_counter;
-  "L_" ^ string_of_int !label_counter
+  let l = "L_" ^ string_of_int !label_counter in
+  if !debug then Format.eprintf "Generated label: %s@." l;
+  l
 
 let strings = Hashtbl.create 17
 let add_string s =
@@ -78,18 +80,17 @@ and compile_expr e =
     | Beq | Bne | Blt | Ble | Bgt | Bge ->
         let l_true = new_label () in
         let l_end = new_label () in
-        cmpq (reg rbx) (reg rax) ++
-        (match op with
+        let jump_instr = match op with 
         | Beq -> je l_true
         | Bne -> jne l_true
         | Blt -> jl l_true
         | Ble -> jle l_true
         | Bgt -> jg l_true
         | Bge -> jge l_true
-        | _ -> assert false) ++
-        movq (imm 0) (reg rax) ++
-        jmp l_end ++
-        label l_true ++
+        | _ -> assert false
+        in
+        cmpq (reg rbx) (reg rax) ++
+        jump_instr ++
         movq (imm 0) (reg rax) ++
         jmp l_end ++
         label l_true ++
@@ -142,18 +143,26 @@ and compile_expr e =
       
   | TEcall (fn, args) ->
       let nargs = List.length args in 
+
+      let expanded_args = match args with 
+      | [arg] when (match arg.expr_typ with Tmany _ -> true | _ -> false) ->
+            [arg]
+      | _ -> args
+      in 
+
+
       let push_args = 
         List.fold_right (fun arg code ->
           compile_expr arg ++
           pushq (reg rax) ++
           code
-        ) args nop
+        ) expanded_args nop
        in
        let fn_label = if fn.fn_name = "main" then "_go_main" else fn.fn_name in
       push_args ++
       call fn_label ++ 
       (if nargs > 0 then 
-        addq (imm (8 * nargs)) (reg rsp)
+        addq (imm (nargs * 8)) (reg rsp)
       else nop)
   
   | TEassign (lvs, rvs) ->
@@ -174,6 +183,7 @@ and compile_expr e =
       let do_assigns = List.fold_left (fun code lv ->
         code ++
         compile_lvalue lv ++
+        movq (reg rax) (reg rbx) ++
         popq rax ++
         movq (reg rax) (ind rbx)
     ) nop (List.rev lvs) in 
@@ -255,7 +265,7 @@ and compile_expr e =
         | Tptr _ | Tnil ->
             compile_expr e ++
             movq (reg rax) (reg rsi) ++
-            movq (ilab "S_fmt_int") (reg rdi) ++
+            movq (ilab "S_fmt_ptr") (reg rdi) ++
             xorq (reg rax) (reg rax) ++
             call "printf_"
         | _ -> nop 
@@ -295,7 +305,8 @@ let compute_locals fn body =
     | TEif (_, e1, e2)  -> collect_vars e1; collect_vars e2
     | TEfor (_, body) -> collect_vars body
     | TEassign (lvs, rvs) ->
-        List.iter collect_vars lvs; List.iter collect_vars rvs
+        List.iter collect_vars lvs; 
+        List.iter collect_vars rvs
     | TEbinop (_, e1, e2) -> collect_vars e1; collect_vars e2
     | TEunop (_, e1) -> collect_vars e1
     | TEdot (e1, _) -> collect_vars e1
@@ -379,6 +390,8 @@ let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
   let format_strings =
     label "S_fmt_int" ++
     string "%ld" ++
+    label "S_fmt_ptr" ++
+    string "%p" ++
     label "S_true" ++
     string "true" ++
     label "S_false" ++
